@@ -1,42 +1,89 @@
 import { Injectable } from '@nestjs/common';
 import { NotFoundException } from '@nestjs/common';
 import { v1 as uuid } from 'uuid';
-import { Board, BoardStatus } from './boards.model';
-import { PostBoardDto } from './dto/post.board.dto';
+import { Boards } from '../models/entities/boards.entity';
+// import { BoardsRepository } from './boards.repository';
+import { InjectRepository } from '@nestjs/typeorm';
+import { BoardStatus } from './boards.status.enum';
+import { Repository } from 'typeorm';
+import { PostBoardDto } from '../models/dtos/board/post.board.dto';
+import { Users } from 'src/models/entities/user.entity';
 
 @Injectable()
 export class BoardsService {
-  private boards: Board[] = [];
+  constructor(
+    @InjectRepository(Boards)
+    private boardsRepository: Repository<Boards>,
+  ) {}
 
-  getAllBoards(): Board[] {
-    return this.boards;
+  public async postBoard(body: PostBoardDto, user: Users): Promise<Boards> {
+    try {
+      const postBoard = this.boardsRepository.create({
+        title: body.title,
+        description: body.description,
+        status: body.status,
+        user
+      });
+
+      const saveBoard = await this.boardsRepository.save(postBoard);
+
+      return saveBoard;
+    } catch (err) {
+      console.log(err);
+    } finally {
+    }
   }
 
-  postBoard(postBoardDto: PostBoardDto) {
-    const board: Board = {
-      id: uuid(),
-      title: postBoardDto.title,
-      description: postBoardDto.description,
-      status: BoardStatus.PUBLIC,
-    };
+  public async getBoardByToken(payload : Users): Promise<Boards[]> {
+    const getBuilder = this.boardsRepository.createQueryBuilder('boards');
+    
+    getBuilder.where(`boards.Id = :userId`, { userId : payload.id});
 
-    this.boards.push(board);
-    return board;
+    const boards = await getBuilder.getMany();
+
+    return boards
   }
 
-  getBoardById(id: string): Board {
-    const getBoardById = this.boards.find((board) => (board.id = id));
-    if (!getBoardById) throw new NotFoundException('ID를 찾을 수 없습니다.');
+  public async getBoardById(id: string): Promise<Boards> {
+    const getBoardById = await this.boardsRepository.findOne({
+      where: {
+        id: parseInt(id),
+      },
+    });
+
+    if (!getBoardById) throw new NotFoundException(`Can't find ID is ${id}`);
+
     return getBoardById;
   }
 
-  async deleteBoard(id: string): Promise<void> {
-    this.boards = this.boards.filter((board) => board.id !== id);
+  public async getBoard(): Promise<Boards[]> {
+    const getBoard = await this.boardsRepository.find();
+    return getBoard;
   }
 
-  async patchBoardStatus(id: string, status: BoardStatus): Promise<Board> {
-    const boards = this.getBoardById(id);
-    boards.status = status;
-    return boards;
+  public async deleteBoardByToken(payload : Users, boardId : string): Promise<boolean> {
+    const deleteBuilder = this.boardsRepository.createQueryBuilder();
+
+    const deleteBoard = await deleteBuilder
+    .delete()
+    .from('boards')
+    .where("id = :id", { id : boardId })
+    .andWhere("userId = :userId", { userId : payload.id})
+    .execute();
+
+    if(deleteBoard.affected === 1) return true;
+    else return false;
+  }
+
+  public async deleteBoardById(id: string): Promise<void> {
+    await this.boardsRepository.delete(id);
+  }
+
+  public async patchBoardById(id: number): Promise<void> {
+    const getBoard = await this.getBoardById(id.toString());
+
+    getBoard.status = BoardStatus.PUBLIC;
+
+    await this.boardsRepository.save(getBoard);
   }
 }

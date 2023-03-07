@@ -1,16 +1,14 @@
 import { Module } from '@nestjs/common';
-import { BoardsController } from './boards.controller';
-import { BoardsService } from './boards.service';
 import { TypeOrmModule } from '@nestjs/typeorm';
-import { Boards } from '../models/entities/boards.entity';
-import { AuthModule } from 'src/auth/auth.module';
 import { JwtModule } from '@nestjs/jwt';
+import { AuthController } from './auth.controller';
+import { AuthService } from './auth.service';
+import { Users } from '../models/entities/user.entity';
 import { PassportModule } from '@nestjs/passport';
+import { JwtStrategyPassport } from 'src/passport/jwt.passport';
 
 @Module({
   imports: [
-    TypeOrmModule.forFeature([Boards]),
-    AuthModule,
     PassportModule.register({ defaultStrategy: 'jwt' }),
     JwtModule.register({
       secret: process.env.JWT_SECRET_KEY,
@@ -18,8 +16,9 @@ import { PassportModule } from '@nestjs/passport';
         expiresIn: '1h',
       },
     }),
+    TypeOrmModule.forFeature([Users]),
   ],
-  controllers: [BoardsController],
-  providers: [BoardsService],
+  controllers: [AuthController],
+  providers: [AuthService, JwtStrategyPassport],
 })
-export class BoardsModule {}
+export class AuthModule {}
